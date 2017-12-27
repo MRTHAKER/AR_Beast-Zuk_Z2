@@ -2,7 +2,6 @@
  * Author: Park Ju Hyung aka arter97 <qkrwngud825@gmail.com>
  *
  * Copyright 2015 Park Ju Hyung
- * Copyright 2016 Joe Maples
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -30,20 +29,16 @@
 
 #include <linux/module.h>
 #include <linux/devfreq.h>
-#include <linux/display_state.h>
 #include <linux/msm_adreno_devfreq.h>
 
 #define ADRENO_IDLER_MAJOR_VERSION 1
 #define ADRENO_IDLER_MINOR_VERSION 1
-#define ADRENO_IDLER_REVISION 2
 
 /* stats.busy_time threshold for determining if the given workload is idle.
    Any workload higher than this will be treated as a non-idle workload.
    Adreno idler will more actively try to ramp down the frequency
    if this is set to a higher value. */
-
-static unsigned long idleworkload = 1000;
-
+static unsigned long idleworkload = 5000;
 module_param_named(adreno_idler_idleworkload, idleworkload, ulong, 0664);
 
 /* Number of events to wait before ramping down the frequency.
@@ -52,29 +47,24 @@ module_param_named(adreno_idler_idleworkload, idleworkload, ulong, 0664);
    This implementation is to prevent micro-lags on scrolling or playing games.
    Adreno idler will more actively try to ramp down the frequency
    if this is set to a lower value. */
-static unsigned int idlewait = 54;
+static unsigned int idlewait = 20;
 module_param_named(adreno_idler_idlewait, idlewait, uint, 0664);
 
 /* Taken from ondemand */
-static unsigned int downdifferential = 40;
+static unsigned int downdifferential = 20;
 module_param_named(adreno_idler_downdifferential, downdifferential, uint, 0664);
 
 /* Master switch to activate the whole routine */
-static bool adreno_idler_active = false;
+static bool adreno_idler_active = true;
 module_param_named(adreno_idler_active, adreno_idler_active, bool, 0664);
 
 static unsigned int idlecount = 0;
-
-/* Boolean to let us know if the display is on*/
-static bool display_on;
 
 int adreno_idler(struct devfreq_dev_status stats, struct devfreq *devfreq,
 		 unsigned long *freq)
 {
 	if (!adreno_idler_active)
 		return 0;
-
-	display_on = is_display_on();
 
 	if (stats.busy_time < idleworkload) {
 		/* busy_time >= idleworkload should be considered as a non-idle workload. */
@@ -91,10 +81,6 @@ int adreno_idler(struct devfreq_dev_status stats, struct devfreq *devfreq,
 			idlecount--;
 			return 1;
 		}
-	} else if (!display_on) {
-		/* GPU shouldn't be used for much while display is off, so ramp down the frequency */
-		*freq = devfreq->profile->freq_table[devfreq->profile->max_state - 1];
-		return 1;
 	} else {
 		idlecount = 0;
 		/* Do not return 1 here and allow rest of the algorithm to
@@ -107,10 +93,9 @@ EXPORT_SYMBOL(adreno_idler);
 
 static int __init adreno_idler_init(void)
 {
-	pr_info("adreno_idler: version %d.%d rev %d by arter97, optimized values by halogenOS team\n",
+	pr_info("adreno_idler: version %d.%d by arter97\n",
 		 ADRENO_IDLER_MAJOR_VERSION,
-		 ADRENO_IDLER_MINOR_VERSION,
-		 ADRENO_IDLER_REVISION);
+		 ADRENO_IDLER_MINOR_VERSION);
 
 	return 0;
 }
